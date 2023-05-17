@@ -1,52 +1,91 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
+using Random = UnityEngine.Random;
 
 public class Gun : MonoBehaviour
 {
     public GameObject hitPrefab;
-    public GameObject muzzlePrefab;
     public float maxDistance = 100;
+    public GameObject flashEffect;
 
-    public AudioClip gunshotSound;
     private AudioSource source;
+    public AudioClip shootSound;
+
+    public UnityEvent onShoot;
+
+    public int maxAmmo = 30;
+    public int ammo;
+
+    public float recoilAngle = 1;
+    public int shotsPerAmmo = 5;
+
+    public int damage = 10;
 
     private void Start()
     {
         source = gameObject.AddComponent<AudioSource>();
     }
 
-    private void Update()
+
+    void Update()
     {
         if (Input.GetKeyDown(KeyCode.Mouse0))
+        {
+            TryShoot();
+        }
+    }
+
+    void TryShoot()
+    {
+        if (ammo <= 0) return;
+        ammo--;
+        onShoot.Invoke();
+
+        flashEffect.SetActive(true);
+        Invoke("DisableFlashEffect", 0.05f);
+
+        source.pitch = Random.Range(0.8f, 1.2f);
+        source.PlayOneShot(shootSound);
+
+
+        for (int i = 0; i < shotsPerAmmo; i++)
         {
             Shoot();
         }
     }
 
+
     void Shoot()
     {
         var cam = Camera.main;
-        var ray = new Ray(cam.transform.position, cam.transform.forward);
+        var dir = cam.transform.forward;
 
-        muzzlePrefab.SetActive(true);
-        Invoke("DisableFlashEffect", 0.05f);
+        var offsetX = Random.Range(-recoilAngle, recoilAngle);
+        var offsetY = Random.Range(-recoilAngle, recoilAngle);
+        dir = Quaternion.Euler(offsetX, offsetY, 0) * dir;
 
-        source.pitch = Random.Range(0.8f, 1.2f);
-        source.PlayOneShot(gunshotSound);
+        var ray = new Ray(cam.transform.position, dir);
+
 
         if (Physics.Raycast(ray, out var hit, maxDistance))
         {
-             print(hit.point);
-             var hitObj = Instantiate(hitPrefab, hit.point, Quaternion.Euler(0, 0, 0));
-             hitObj.transform.forward = hit.normal;
-             hitObj.transform.position += hit.normal * 0.02f;
+            var health = hit.transform.GetComponent<Health>();
+            if (health)
+            {
+                health.Damage(damage);
+            }
 
+            if (!hit.transform.CompareTag("Enemy"))
+            {
+                var hitObj = Instantiate(hitPrefab, hit.point, Quaternion.Euler(0, 0, 0), hit.transform);
+                hitObj.transform.forward = hit.normal;
+                hitObj.transform.position += hit.normal * 0.02f;
+            }
         }
     }
 
     void DisableFlashEffect()
     {
-        muzzlePrefab.SetActive(false);
+        flashEffect.SetActive(false);
     }
 }
